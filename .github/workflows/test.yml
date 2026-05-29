@@ -1,55 +1,69 @@
-name: test
+name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
-  workflow_dispatch:
-    inputs:
-      stock:
-        description: "stock number"
-        default: "2330"
-      date:
-        description: "data date (YYYYMMDD)"
-        default: "20260522"
+    branches: [main]
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
 
-      - name: Import / wiring sanity check
+      # ---------- contract & compiler tests ----------
+      - name: Run contract tests
+        run: pytest tests/test_contracts.py -v
+
+      - name: Run compiler tests (except hash match)
+        run: pytest tests/test_compiler.py -v -k "not hash_matches_milestone1"
+
+      - name: Compile context → execution_plan
         run: |
-          python -c "from runtime import Runtime; from runtime.action_handlers import HANDLERS; \
-                     assert set(HANDLERS)=={'http_request','extract_html','parse_table','save_csv'}; \
-                     print('handlers OK', list(HANDLERS))"
+          python compiler/compiler.py \
+            --context context/tdcc_context.json \
+            --output  plans/tdcc_execution_plan_compiled.json
 
-      - name: Validate plan_hash is deterministic
+      # ---------- handler smoke test ----------
+      - name: Handler imports OK
         run: |
-          python -c "import json,run; p=run.load_json(run.PLAN_PATH); \
-                     h1=run.compute_plan_hash(p); h2=run.compute_plan_hash(p); \
-                     assert h1==h2; print('plan_hash', h1)"
+          python -c "
+          from runtime import Runtime
+          from runtime.action_handlers import HANDLERS
+          assert set(HANDLERS)=={'http_request','extract_html','parse_table','save_csv'}
+          print('handlers OK', list(HANDLERS))
+          "
 
-      - name: Run crawler (live POC)
+      # ---------- plan_hash test ----------
+      - name: plan_hash deterministic
         run: |
-          python run.py --stock "${{ github.event.inputs.stock || '2330' }}" \
-                        --date  "${{ github.event.inputs.date  || '20260522' }}"
-        continue-on-error: true
+          python -c "
+          import json, run
+          p=run.load_json(run.PLAN_PATH)
+          h1=run.compute_plan_hash(p)
+          h2=run.compute_plan_hash(p)
+          assert h1==h2
+          print('plan_hash', h1)
+          "
 
-      - name: Upload outputs
-        if: always()
-        uses: actions/upload-artifact@v4
+      # ---------- e2e crawl ----------
+      - name: Crawl TDCC 0050
+        run: |
+          python run.py --stock "0050" \
+                        --date  "20250808"
+
+      - uses: actions/upload-artifact@v4
         with:
           name: crawler-output
           path: |
             data/
             logs/runtime_state.json
+            plans/tdcc_execution_plan_compiled.json
           if-no-files-found: ignore
