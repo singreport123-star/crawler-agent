@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "site": "www.tdcc.com.tw",
+  "entry_url": "https://www.tdcc.com.tw/portal/zh/smWeb/qryStock",
+  "auth": {
+    "type": "csrf_token",
+    "token": {
+      "source": { "type": "selector", "selector": "input[name=SYNCHRONIZER_TOKEN]" },
+      "inject_to": { "type": "form_field", "name": "SYNCHRONIZER_TOKEN" }
+    },
+    "bindings": [
+      {
+        "source": { "type": "constant", "value": "/portal/zh/smWeb/qryStock" },
+        "inject_to": { "type": "form_field", "name": "SYNCHRONIZER_URI" }
+      }
+    ]
+  },
+  "request": {
+    "method": "POST",
+    "content_type": "application/x-www-form-urlencoded"
+  },
+  "inputs": {
+    "stock": { "type": "string", "required": true, "field": "stockNo" },
+    "date":  { "type": "string", "required": true, "field": "scaDate" }
+  },
+  "extra_fields": [
+    { "field": "method",    "value": { "type": "constant", "value": "submit" } },
+    { "field": "sqlMethod", "value": { "type": "constant", "value": "StockNo" } },
+    { "field": "firDate",   "value": { "type": "selector", "selector": "input[name=firDate]" } }
+  ],
+  "response": {
+    "parser": {
+      "type": "html_table",
+      "format": "html",
+      "selector": "table.table",
+      "column_mode": "index"
+    },
+    "data_shape": "table_rows",
+    "post_process": { "skip_row_keyword": "合　計" }
+  },
+  "capabilities": {
+    "auth": ["csrf_token"],
+    "response": ["html_table"]
+  }
+}
