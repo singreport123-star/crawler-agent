@@ -4,7 +4,7 @@ Runtime 只讀，不可修改。
 """
 from __future__ import annotations
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class StepBase(BaseModel):
@@ -26,8 +26,7 @@ class ExtractHtmlStep(StepBase):
     from_: str = Field(..., alias="from")
     selectors: dict[str, Any]
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class ParseTableStep(StepBase):
@@ -38,8 +37,7 @@ class ParseTableStep(StepBase):
     skip_row_keyword: str | None = None
     add_columns: dict[str, str] = {}
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class SaveCsvStep(StepBase):
@@ -48,8 +46,7 @@ class SaveCsvStep(StepBase):
     path: str
     encoding: str = "utf-8-sig"
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 AnyStep = HttpRequestStep | ExtractHtmlStep | ParseTableStep | SaveCsvStep
@@ -62,7 +59,7 @@ class PlanInput(BaseModel):
 
 class ExecutionPlanSchema(BaseModel):
     version: str = "1.0"
-    plan_hash: str
+    plan_hash: str | None = None
     site: str
     inputs: dict[str, PlanInput]
     steps: list[dict]  # raw dict，runtime 自己 dispatch
