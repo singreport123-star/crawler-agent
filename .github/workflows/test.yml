@@ -5,6 +5,28 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'TDCC or MOPS'
+        required: true
+        default: 'TDCC'
+        type: choice
+        options:
+          - TDCC
+          - MOPS
+      stock:
+        description: '股票代號 (TDCC用)'
+        required: false
+        default: '0050'
+      date:
+        description: '日期 (TDCC用, YYYYMMDD)'
+        required: false
+        default: '20250808'
+      file_name:
+        description: 'fileName (MOPS用, 例如 000930_1150422_114156.pdf)'
+        required: false
+        default: '000930_1150422_114156.pdf'
 
 jobs:
   smoke:
@@ -26,17 +48,23 @@ jobs:
       - name: Compiler tests (except hash match)
         run: pytest tests/test_compiler.py -v -k "not hash_matches_milestone1"
 
-      - name: Compile context → execution_plan
+      - name: Compile TDCC context
         run: |
           python compiler/compiler.py \
             --context context/tdcc_context.json \
             --output  plans/tdcc_execution_plan_compiled.json
 
-      # ---------- planner unit tests（不需要 API key）----------
+      - name: Compile MOPS context
+        run: |
+          python compiler/compiler.py \
+            --context context/mops_context.json \
+            --output  plans/mops_execution_plan_compiled.json
+
+      # ---------- planner unit tests ----------
       - name: Planner unit tests
         run: pytest tests/test_planner.py -v -k "not e2e"
 
-      # ---------- planner e2e（需要 API key）----------
+      # ---------- planner e2e ----------
       - name: Planner E2E (Gemini)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -64,16 +92,25 @@ jobs:
           print('plan_hash', h1)
           "
 
-      # ---------- e2e crawl ----------
-      - name: Crawl TDCC 0050
+      # ---------- crawl（依 target 選擇）----------
+      - name: Crawl TDCC
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'TDCC' }}
         run: |
-          python run.py --stock "0050" \
-                        --date  "20250808"
+          python run.py \
+            --stock "${{ inputs.stock || '0050' }}" \
+            --date  "${{ inputs.date  || '20250808' }}"
+
+      - name: Crawl MOPS
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'MOPS' }}
+        run: |
+          python run.py \
+            --plan  plans/mops_execution_plan_compiled.json \
+            --file_name "${{ inputs.file_name }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: crawler-output
           path: |
             data/
-            plans/tdcc_execution_plan_compiled.json
+            plans/
           if-no-files-found: ignore
