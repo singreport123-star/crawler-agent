@@ -16,7 +16,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from compiler.transforms.csrf_token import apply as csrf_apply, build_post_payload, _canonicalize_field_name
+from compiler.transforms.csrf_token import apply as csrf_apply, build_post_payload as csrf_payload, _canonicalize_field_name
+from compiler.transforms.no_auth import build_post_payload as no_auth_payload
 from compiler.transforms.html_table import apply as html_apply
 from compiler.validators.validate import validate_context, validate_execution_plan
 
@@ -28,7 +29,6 @@ def canonical_dumps(data: dict) -> str:
 
 
 def compute_plan_hash(plan: dict) -> str:
-    """plan_hash を除いた dict で hash を計算する"""
     plan_without_hash = {k: v for k, v in plan.items() if k != "plan_hash"}
     serialized = canonical_dumps(plan_without_hash)
     return "sha256:" + hashlib.sha256(serialized.encode("utf-8")).hexdigest()
@@ -37,43 +37,31 @@ def compute_plan_hash(plan: dict) -> str:
 # ---------- compiler ----------
 
 def compile_context(context_path: str, output_path: str | None = None) -> dict:
-    """
-    context.json → execution_plan.json
-
-    Args:
-        context_path: context.json 路徑
-        output_path: 輸出路徑，None 則只回傳不寫檔
-
-    Returns:
-        execution_plan dict
-    """
     with open(context_path, encoding="utf-8") as f:
         raw = json.load(f)
 
     # 1. validate
     ctx = validate_context(raw)
-    context = raw  # 後續用 raw dict 操作，pydantic 已驗證過
+    context = raw
 
     # 2. capability transforms
     steps = []
-
     auth_caps = ctx.capabilities.auth
     response_caps = ctx.capabilities.response
 
-    # csrf_token → load_page + extract_csrf
     if "csrf_token" in auth_caps:
+        # csrf_token → load_page + extract_csrf + post_query
         steps.extend(csrf_apply(context))
-
-    # post_query step（中間連接 auth → response）
-    post_payload = build_post_payload(context)
-    consumes = [
-        "steps.extract_csrf.outputs.csrf_token",
-    ]
-    # 加上 selector type 的 extra_fields（用 canonical name）
-    for ef in context.get("extra_fields", []):
-        if ef["value"]["type"] == "selector":
-            canonical = _canonicalize_field_name(ef["field"])
-            consumes.append(f"steps.extract_csrf.outputs.{canonical}")
+        post_payload = csrf_payload(context)
+        consumes = ["steps.extract_csrf.outputs.csrf_token"]
+        for ef in context.get("extra_fields", []):
+            if ef["value"]["type"] == "selector":
+                canonical = _canonicalize_field_name(ef["field"])
+                consumes.append(f"steps.extract_csrf.outputs.{canonical}")
+    else:
+        # no_auth → 直接 POST
+        post_payload = no_auth_payload(context)
+        consumes = []
 
     steps.append({
         "id": "post_query",
@@ -92,10 +80,10 @@ def compile_context(context_path: str, output_path: str | None = None) -> dict:
     if "html_table" in response_caps:
         steps.extend(html_apply(context, post_step_id="post_query"))
 
-    # 3. assemble plan（不含 plan_hash）
+    # 3. assemble plan
     plan: dict = {
         "version": "1.0",
-        "plan_hash": "",  # placeholder
+        "plan_hash": "",
         "site": context["site"],
         "inputs": {
             name: {"type": inp["type"], "cli": f"--{name}"}
