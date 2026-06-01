@@ -1,0 +1,63 @@
+{
+  "version": "1.0",
+  "plan_hash": "sha256:69dad24e909e3cec1af6582e6523b3c401e00468ddbbca2a40c83e4ac359f868",
+  "site": "mopsov.twse.com.tw",
+  "inputs": {
+    "file_name": {
+      "type": "string",
+      "cli": "--file_name"
+    }
+  },
+  "steps": [
+    {
+      "id": "post_query",
+      "type": "http_request",
+      "session": "default",
+      "consumes": [],
+      "produces": [
+        "steps.post_query.outputs.html"
+      ],
+      "request": {
+        "method": "POST",
+        "url": "https://mopsov.twse.com.tw/mops/web/ajax_t120sg01",
+        "payload": {
+          "firstin": "ture",
+          "step": "",
+          "fileName": "{{input.file_name}}"
+        }
+      }
+    },
+    {
+      "id": "parse_result",
+      "type": "parse_table",
+      "consumes": [
+        "steps.post_query.outputs.html"
+      ],
+      "produces": [
+        "steps.parse_result.outputs.rows"
+      ],
+      "from": "{{steps.post_query.outputs.html}}",
+      "selectors": {
+        "table": {
+          "type": "css",
+          "query": "table.hasBorder"
+        }
+      },
+      "column_mode": "index",
+      "add_columns": {
+        "檔案名稱": "{{input.file_name}}"
+      }
+    },
+    {
+      "id": "save_output",
+      "type": "save_csv",
+      "consumes": [
+        "steps.parse_result.outputs.rows"
+      ],
+      "produces": [],
+      "from": "{{steps.parse_result.outputs.rows}}",
+      "path": "data/mopsov_twse_com_tw_{{input.file_name}}.csv",
+      "encoding": "utf-8-sig"
+    }
+  ]
+}
