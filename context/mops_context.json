@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "site": "mopsov.twse.com.tw",
+  "entry_url": "https://mopsov.twse.com.tw/mops/web/ajax_t120sg01",
+  "auth": null,
+  "request": {
+    "method": "POST",
+    "content_type": "application/x-www-form-urlencoded"
+  },
+  "inputs": {
+    "file_name": { "type": "string", "required": true, "field": "fileName" }
+  },
+  "extra_fields": [
+    { "field": "firstin", "value": { "type": "constant", "value": "ture" } },
+    { "field": "step",    "value": { "type": "constant", "value": "" } }
+  ],
+  "response": {
+    "parser": {
+      "type": "html_table",
+      "format": "html",
+      "selector": "table.hasBorder",
+      "column_mode": "index"
+    },
+    "data_shape": "table_rows",
+    "post_process": {}
+  },
+  "capabilities": {
+    "auth": [],
+    "response": ["html_table"]
+  }
+}
