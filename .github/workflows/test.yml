@@ -1,7 +1,10 @@
 name: CI
 
 on:
-  workflow_dispatch: # <--- 這裡改為僅允許在 GitHub 網頁上手動觸發
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   smoke:
@@ -15,11 +18,12 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      # ---------- contract & compiler tests ----------
-      - name: Run contract tests
+      # ---------- contract tests ----------
+      - name: Contract tests
         run: pytest tests/test_contracts.py -v
 
-      - name: Run compiler tests (except hash match)
+      # ---------- compiler tests ----------
+      - name: Compiler tests (except hash match)
         run: pytest tests/test_compiler.py -v -k "not hash_matches_milestone1"
 
       - name: Compile context → execution_plan
@@ -28,31 +32,43 @@ jobs:
             --context context/tdcc_context.json \
             --output  plans/tdcc_execution_plan_compiled.json
 
-      # ---------- 以下為 Milestone 3 之後的測試，目前先註解避免報錯 ----------
-      # - name: Handler imports OK
-      #   run: |
-      #     python -c "
-      #     from runtime import Runtime
-      #     from runtime.action_handlers import HANDLERS
-      #     assert set(HANDLERS)=={'http_request','extract_html','parse_table','save_csv'}
-      #     print('handlers OK', list(HANDLERS))
-      #     "
+      # ---------- planner unit tests（不需要 API key）----------
+      - name: Planner unit tests
+        run: pytest tests/test_planner.py -v -k "not e2e"
 
-      # - name: plan_hash deterministic
-      #   run: |
-      #     python -c "
-      #     import json, run
-      #     p=run.load_json(run.PLAN_PATH)
-      #     h1=run.compute_plan_hash(p)
-      #     h2=run.compute_plan_hash(p)
-      #     assert h1==h2
-      #     print('plan_hash', h1)
-      #     "
+      # ---------- planner e2e（需要 API key）----------
+      - name: Planner E2E (Gemini)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: pytest tests/test_planner.py::test_planner_e2e_tdcc -v
 
-      # - name: Crawl TDCC 0050
-      #   run: |
-      #     python run.py --stock "0050" \
-      #                   --date  "20250808"
+      # ---------- handler smoke ----------
+      - name: Handler imports OK
+        run: |
+          python -c "
+          from runtime import Runtime
+          from runtime.action_handlers import HANDLERS
+          assert set(HANDLERS)=={'http_request','extract_html','parse_table','save_csv'}
+          print('handlers OK', list(HANDLERS))
+          "
+
+      # ---------- plan_hash ----------
+      - name: plan_hash deterministic
+        run: |
+          python -c "
+          import json, run
+          p=run.load_json(run.PLAN_PATH)
+          h1=run.compute_plan_hash(p)
+          h2=run.compute_plan_hash(p)
+          assert h1==h2
+          print('plan_hash', h1)
+          "
+
+      # ---------- e2e crawl ----------
+      - name: Crawl TDCC 0050
+        run: |
+          python run.py --stock "0050" \
+                        --date  "20250808"
 
       - uses: actions/upload-artifact@v4
         with:
