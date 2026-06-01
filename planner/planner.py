@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from contracts.context_schema import ContextSchema
 from planner.extractor import fetch_and_extract
 
-MODEL = "gemini-1.5-flash"
+MODEL = "gemini-2.5-flash"  # 或是改為 "gemini-2.0-flash"
 
 SYSTEM_PROMPT = """
 You are a web scraping analyst. Given a website summary (forms, tables, CSRF patterns),
