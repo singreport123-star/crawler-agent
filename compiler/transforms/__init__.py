@@ -6,3 +6,6 @@ TRANSFORMS = {
 }
 
 __all__ = ["TRANSFORMS"]
+
+from . import no_auth
+TRANSFORMS["no_auth"] = no_auth
