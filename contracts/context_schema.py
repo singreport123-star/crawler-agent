@@ -106,6 +106,7 @@ class ResponseSchema(BaseModel):
 class CapabilitiesSchema(BaseModel):
     auth: list[str] = []
     response: list[str] = []
+    flow: list[str] = []
 
 
 # ---------- root ----------
