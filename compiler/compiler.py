@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from compiler.transforms.csrf_token import apply as csrf_apply, build_post_payload as csrf_payload, _canonicalize_field_name
 from compiler.transforms.no_auth import build_post_payload as no_auth_payload
 from compiler.transforms.html_table import apply as html_apply
+from compiler.transforms.extract_then_fetch import apply as extract_then_fetch_apply
 from compiler.validators.validate import validate_context, validate_execution_plan
 
 
@@ -46,11 +47,11 @@ def compile_context(context_path: str, output_path: str | None = None) -> dict:
 
     # 2. capability transforms
     steps = []
-    auth_caps = ctx.capabilities.auth
+    auth_caps     = ctx.capabilities.auth
     response_caps = ctx.capabilities.response
+    flow_caps     = ctx.capabilities.flow
 
     if "csrf_token" in auth_caps:
-        # csrf_token → load_page + extract_csrf + post_query
         steps.extend(csrf_apply(context))
         post_payload = csrf_payload(context)
         consumes = ["steps.extract_csrf.outputs.csrf_token"]
@@ -59,7 +60,6 @@ def compile_context(context_path: str, output_path: str | None = None) -> dict:
                 canonical = _canonicalize_field_name(ef["field"])
                 consumes.append(f"steps.extract_csrf.outputs.{canonical}")
     else:
-        # no_auth → 直接 POST
         post_payload = no_auth_payload(context)
         consumes = []
 
@@ -76,8 +76,10 @@ def compile_context(context_path: str, output_path: str | None = None) -> dict:
         },
     })
 
-    # html_table → parse_result + save_output
-    if "html_table" in response_caps:
+    # flow: extract_then_fetch → 取代 html_table 的 parse/save
+    if "extract_then_fetch" in flow_caps:
+        steps.extend(extract_then_fetch_apply(context, list_step_id="post_query"))
+    elif "html_table" in response_caps:
         steps.extend(html_apply(context, post_step_id="post_query"))
 
     # 3. assemble plan
