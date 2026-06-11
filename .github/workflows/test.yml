@@ -23,10 +23,10 @@ on:
         description: '日期 (TDCC用, YYYYMMDD)'
         required: false
         default: '20250808'
-      file_name:
-        description: 'fileName (MOPS用, 例如 000930_1150422_114156.pdf)'
+      issuer_code:
+        description: '發行公司代號 (MOPS用, 例如 000930)'
         required: false
-        default: '000930_1150422_114156.pdf'
+        default: '000930'
 
 jobs:
   smoke:
@@ -76,7 +76,8 @@ jobs:
           python -c "
           from runtime import Runtime
           from runtime.action_handlers import HANDLERS
-          assert set(HANDLERS)=={'http_request','extract_html','parse_table','save_csv'}
+          expected = {'http_request','extract_html','parse_table','save_csv','foreach','extract_links'}
+          assert set(HANDLERS) == expected, f'missing: {expected - set(HANDLERS)}'
           print('handlers OK', list(HANDLERS))
           "
 
@@ -100,48 +101,13 @@ jobs:
             --stock "${{ inputs.stock || '0050' }}" \
             --date  "${{ inputs.date  || '20250808' }}"
 
-      # ---------- debug MOPS response ----------
-      - name: Debug MOPS response
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'MOPS' }}
-        run: |
-          python - << 'EOF'
-          import requests
-          from bs4 import BeautifulSoup
-
-          url = "https://mopsov.twse.com.tw/mops/web/ajax_t120sg01"
-          payload = {
-              "firstin": "ture",
-              "fileName": "${{ inputs.file_name }}",
-              "step": "",
-          }
-          headers = {
-              "User-Agent": "Mozilla/5.0 (compatible; crawler-agent/1.0)",
-              "Content-Type": "application/x-www-form-urlencoded",
-          }
-          resp = requests.post(url, data=payload, headers=headers, timeout=15)
-          print(f"status: {resp.status_code}")
-          print(f"content-length: {len(resp.text)}")
-
-          soup = BeautifulSoup(resp.text, "html.parser")
-          tables = soup.find_all("table")
-          print(f"tables found: {len(tables)}")
-          for i, t in enumerate(tables):
-              classes = t.get("class", [])
-              rows = len(t.find_all("tr"))
-              print(f"  table[{i}] class={classes} rows={rows}")
-
-          print()
-          print("=== first 3000 chars ===")
-          print(resp.text[:3000])
-          EOF
-
       # ---------- crawl MOPS ----------
       - name: Crawl MOPS
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'MOPS' }}
         run: |
           python run.py \
-            --plan      plans/mops_execution_plan_compiled.json \
-            --file_name "${{ inputs.file_name }}"
+            --plan         plans/mops_execution_plan_compiled.json \
+            --issuer_code  "${{ inputs.issuer_code }}"
 
       - uses: actions/upload-artifact@v4
         with:
