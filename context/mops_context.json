@@ -1,19 +1,40 @@
 {
   "schema_version": "1.0",
   "site": "mopsov.twse.com.tw",
-  "entry_url": "https://mopsov.twse.com.tw/mops/web/ajax_t120sg01",
+  "entry_url": "https://mopsov.twse.com.tw/mops/web/ajax_t120sb02",
   "auth": null,
   "request": {
     "method": "POST",
     "content_type": "application/x-www-form-urlencoded"
   },
   "inputs": {
-    "file_name": { "type": "string", "required": true, "field": "fileName" }
+    "issuer_code": { "type": "string", "required": true, "field": "issuer_stock_code_1" }
   },
   "extra_fields": [
-    { "field": "firstin", "value": { "type": "constant", "value": "ture" } },
-    { "field": "step",    "value": { "type": "constant", "value": "" } }
+    { "field": "firstin",   "value": { "type": "constant", "value": "true" } },
+    { "field": "step",      "value": { "type": "constant", "value": "11" } },
+    { "field": "TYPEK",     "value": { "type": "constant", "value": "" } },
+    { "field": "bond_kind", "value": { "type": "constant", "value": "4" } },
+    { "field": "nh",        "value": { "type": "constant", "value": "n" } },
+    { "field": "overtime",  "value": { "type": "constant", "value": "0" } },
+    { "field": "ontime",    "value": { "type": "constant", "value": "Y" } }
   ],
+  "extract_links": {
+    "item_key": "file_name",
+    "source": "form",
+    "selector": "form[action='/mops/web/ajax_t120sg01']",
+    "field": "input[name=fileName]",
+    "attr": "value"
+  },
+  "detail_request": {
+    "url": "https://mopsov.twse.com.tw/mops/web/ajax_t120sg01",
+    "method": "POST",
+    "payload": [
+      { "field": "firstin",  "value": { "type": "constant", "value": "ture" } },
+      { "field": "fileName", "value": { "type": "loop",     "key": "file_name" } },
+      { "field": "step",     "value": { "type": "constant", "value": "" } }
+    ]
+  },
   "response": {
     "parser": {
       "type": "html_table",
@@ -26,6 +47,7 @@
   },
   "capabilities": {
     "auth": [],
-    "response": ["html_table"]
+    "response": ["html_table"],
+    "flow": ["extract_then_fetch"]
   }
 }
