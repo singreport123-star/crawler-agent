@@ -8,16 +8,19 @@ from __future__ import annotations
 import time
 from bs4 import BeautifulSoup
 
+from ..schemas import StepError, StepResult, StepMetrics
 
-def handle(step: dict, state: dict, runtime) -> dict:
-    start = time.time()
 
-    html = runtime._resolve(step["from"], state)
-    source   = step["source"]
-    selector = step["selector"]
-    field    = step.get("field")
-    attr     = step.get("attr", "value")
-    item_key = step["item_key"]
+def handle(step: dict, resolved: dict) -> StepResult:
+    start = time.perf_counter()
+
+    # 直接使用 runtime 已經幫忙解析好變數的 resolved 字典
+    html = resolved["from"]
+    source   = resolved["source"]
+    selector = resolved["selector"]
+    field    = resolved.get("field")
+    attr     = resolved.get("attr", "value")
+    item_key = resolved["item_key"]
 
     soup = BeautifulSoup(html, "html.parser")
     items = []
@@ -45,26 +48,21 @@ def handle(step: dict, state: dict, runtime) -> dict:
             if val:
                 items.append(val)
 
-    duration = (time.time() - start) * 1000
+    duration = int((time.perf_counter() - start) * 1000)
 
     if not items:
-        return {
-            "status": "failed",
-            "outputs": {},
-            "meta": {},
-            "metrics": {"duration_ms": duration},
-            "error": {
-                "code": "EXTRACT_LINKS_EMPTY",
-                "message": f"no items found with selector='{selector}' field='{field}' attr='{attr}'",
-                "retryable": False,
-                "details": {"source": source},
-            },
-        }
+        # 改用拋出 StepError，符合新版 runtime.py 的錯誤處理機制
+        raise StepError(
+            code="EXTRACT_LINKS_EMPTY",
+            message=f"no items found with selector='{selector}' field='{field}' attr='{attr}'",
+            retryable=False,
+            details={"source": source},
+        )
 
-    return {
-        "status": "success",
-        "outputs": {"items": items},
-        "meta": {"item_count": len(items), "item_key": item_key},
-        "metrics": {"duration_ms": duration},
-        "error": None,
-    }
+    # 回傳 StepResult 物件
+    return StepResult(
+        status="success",
+        outputs={"items": items},
+        meta={"item_count": len(items), "item_key": item_key},
+        metrics=StepMetrics(duration_ms=duration)
+    )
